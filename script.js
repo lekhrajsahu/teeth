@@ -31,13 +31,13 @@ function init(){
   controls.enableDamping = true;
 
   // Lights
-  const dir = new THREE.DirectionalLight(0xffffff, 1);
-  dir.position.set(5, 5, 5);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(5,5,5);
   scene.add(dir);
 
-  scene.add(new THREE.AmbientLight(0xffffff, .6));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-  // Loader
+  // Load 3D Model
   const loader = new THREE.GLTFLoader();
 
   console.log("Loading model...");
@@ -45,30 +45,46 @@ function init(){
   loader.load(
     "teeth.glb",
 
-    (gltf) => {
+    function (gltf) {
+
       console.log("Model Loaded");
+
       const model = gltf.scene;
-      model.position.set(0, 0, 0);
-      model.scale.set(1.5, 1.5, 1.5);
+
+      // --- CENTER & SCALE MODEL ---
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+
+      model.position.x += (model.position.x - center.x);
+      model.position.y += (model.position.y - center.y);
+      model.position.z += (model.position.z - center.z);
+
+      const maxAxis = Math.max(size.x, size.y, size.z);
+      model.scale.multiplyScalar(3 / maxAxis);
+
       scene.add(model);
     },
 
-    (xhr) => {
+    function (xhr) {
       console.log((xhr.loaded / xhr.total * 100) + "% loaded");
     },
 
-    (err) => {
-      console.error("Error loading model:", err);
+    function (error) {
+      console.error("MODEL LOAD ERROR", error);
     }
   );
 
-  // Raycaster
+  // Raycaster for clicking
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
 
   window.addEventListener("click", onClick);
   window.addEventListener("resize", onResize);
 }
+
 
 function onClick(e){
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -85,11 +101,13 @@ function onClick(e){
   }
 }
 
+
 function onResize(){
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
+
 
 function animate(){
   requestAnimationFrame(animate);
