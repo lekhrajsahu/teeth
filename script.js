@@ -37,6 +37,7 @@ function init(){
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
+
   // Load 3D Model
   const loader = new THREE.GLTFLoader();
 
