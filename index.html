@@ -1,35 +1,451 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>3D Teeth Anatomy</title>
-<link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <title>3D Teeth Anatomy Viewer — Responsive</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f1f8ee;
+      --card-bg:#fff;
+      --accent:#4caf50;
+      --muted:#777;
+      --panel-width:320px;
+    }
+
+    html,body{height:100%;margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:var(--bg);-webkit-font-smoothing:antialiased}
+    .wrap {
+      width:100%;
+      max-width:1200px;
+      margin:20px auto;
+      padding:12px;
+      box-sizing:border-box;
+    }
+
+    .container {
+      display:flex;
+      gap:18px;
+      align-items:stretch;
+    }
+
+    .viewer-card {
+      flex:1 1 auto;
+      background:var(--card-bg);
+      border-radius:12px;
+      box-shadow:0 8px 25px rgba(0,0,0,0.12);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:420px;
+    }
+
+    .card-header {
+      background:var(--accent);
+      color:#fff;
+      padding:12px 14px;
+      font-weight:600;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .card-header .title { font-size:16px; }
+    .card-header .controls { font-size:13px; color:rgba(255,255,255,0.95); }
+
+    #viewer-frame {
+      position:relative;
+      flex:1;
+      background:#111;
+      min-height:360px;
+    }
+
+    canvas { display:block; width:100%; height:100%; }
+
+    /* Side info panel */
+    .info-panel {
+      width:var(--panel-width);
+      background:var(--card-bg);
+      border-radius:12px;
+      box-shadow:0 8px 25px rgba(0,0,0,0.12);
+      padding:16px;
+      box-sizing:border-box;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:200px;
+    }
+
+    .info-title { display:flex; justify-content:space-between; align-items:center; font-weight:700; color:#222; }
+    .info-sub { color:var(--muted); font-size:13px; line-height:1.4; }
+    .info-box { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:10px; min-height:140px; }
+    .info-label { font-size:13px; color:#888; }
+    .info-value { font-size:15px; color:#111; font-weight:600; }
+    .hint { margin-top:auto; font-size:12px; color:#888; }
+
+    /* Mobile responsive */
+    @media (max-width: 900px) {
+      .container { flex-direction:column; gap:12px; }
+      .info-panel { width:100%; order:2; min-height:160px; padding:12px; }
+      .viewer-card { order:1; min-height:360px; }
+      /* Toggle button for panel overlay */
+      .panel-toggle {
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        background:rgba(255,255,255,0.08);
+        color:#fff;
+        padding:6px 10px;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:13px;
+      }
+      .panel-overlay {
+        position:fixed;
+        left:12px;
+        right:12px;
+        bottom:12px;
+        z-index:1200;
+        display:none;
+      }
+      .panel-overlay.show { display:block; }
+      .info-panel.overlay { width:100%; box-shadow:0 18px 40px rgba(0,0,0,0.28); }
+    }
+
+    /* Small visual tweaks */
+    .muted { color:var(--muted); font-size:13px; }
+    .small { font-size:12px; color:#666; }
+  </style>
 </head>
-
 <body>
+  <div class="wrap">
+    <div class="container">
+      <div class="viewer-card">
+        <div class="card-header">
+          <div class="title">🦷 Interactive Teeth Anatomy Viewer</div>
+          <div class="controls">
+            <span class="muted small">Rotate: drag • Zoom: scroll • Pan: right-drag</span>
+            <button id="panelToggleBtn" class="panel-toggle" style="display:none;margin-left:12px">Details</button>
+          </div>
+        </div>
 
-<div id="info">
-  <h2 id="title">Click a tooth</h2>
-  <p id="desc"></p>
-</div>
+        <div id="viewer-frame">
+          <canvas id="three-canvas"></canvas>
+        </div>
+      </div>
 
-<canvas id="scene"></canvas>
+      <div id="infoPanel" class="info-panel" aria-live="polite">
+        <div class="info-title">
+          <div>Tooth Details</div>
+          <div class="small muted">Hover or tap a tooth</div>
+        </div>
 
+        <div class="info-box">
+          <div>
+            <div class="info-label">Number</div>
+            <div id="toothNumber" class="info-value">—</div>
+          </div>
 
-<!-- ============================= -->
-<!--  LOAD LIBRARIES IN THIS ORDER -->
-<!-- ============================= -->
+          <div>
+            <div class="info-label">Name</div>
+            <div id="toothName" class="info-value">Hover a tooth</div>
+          </div>
 
-<script src="https://unpkg.com/three@0.161.0/build/three.min.js"></script>
+          <div>
+            <div class="info-label">Function</div>
+            <div id="toothFunction" class="info-sub">Move your mouse over a tooth to see its anatomical name and function here.</div>
+          </div>
+        </div>
 
-<script src="https://unpkg.com/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
+        <div class="hint">Tip: On mobile tap a tooth to select it. Use the Details button to hide/show this panel.</div>
+      </div>
+    </div>
+  </div>
 
-<script src="https://unpkg.com/three@0.161.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- Panel overlay container for mobile -->
+  <div id="panelOverlay" class="panel-overlay" aria-hidden="true"></div>
 
-<!-- ============================= -->
-<!--  YOUR SCRIPT MUST BE LAST     -->
-<!-- ============================= -->
-<script src="script.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
+  <script>
+    // Elements
+    const canvas = document.getElementById('three-canvas');
+    const infoPanel = document.getElementById('infoPanel');
+    const panelToggleBtn = document.getElementById('panelToggleBtn');
+    const panelOverlay = document.getElementById('panelOverlay');
+
+    const toothNumberEl = document.getElementById('toothNumber');
+    const toothNameEl = document.getElementById('toothName');
+    const toothFunctionEl = document.getElementById('toothFunction');
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x202020);
+
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.position.set(0, 2, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    hemi.position.set(0, 20, 0);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(5, 10, 7.5);
+    scene.add(dir);
+
+    // Controls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = true;
+    controls.enableZoom = true;
+
+    // Tooth info mapping (1-32)
+    const toothInfo = {
+      "1":"Upper Right Third Molar – Wisdom tooth, grinding",
+      "2":"Upper Right Second Molar – Grinding and chewing",
+      "3":"Upper Right First Molar – Grinding and chewing",
+      "4":"Upper Right Second Premolar – Crushing and grinding",
+      "5":"Upper Right First Premolar – Crushing and tearing",
+      "6":"Upper Right Canine – Tearing and ripping",
+      "7":"Upper Right Lateral Incisor – Shearing food",
+      "8":"Upper Right Central Incisor – Cutting food",
+      "9":"Upper Left Central Incisor – Cutting food",
+      "10":"Upper Left Lateral Incisor – Shearing food",
+      "11":"Upper Left Canine – Tearing and ripping",
+      "12":"Upper Left First Premolar – Crushing and tearing",
+      "13":"Upper Left Second Premolar – Crushing and grinding",
+      "14":"Upper Left First Molar – Grinding and chewing",
+      "15":"Upper Left Second Molar – Grinding and chewing",
+      "16":"Upper Left Third Molar – Wisdom tooth, grinding",
+      "17":"Lower Left Third Molar – Wisdom tooth, grinding",
+      "18":"Lower Left Second Molar – Grinding and chewing",
+      "19":"Lower Left First Molar – Grinding and chewing",
+      "20":"Lower Left Second Premolar – Crushing and grinding",
+      "21":"Lower Left First Premolar – Crushing and tearing",
+      "22":"Lower Left Canine – Tearing and ripping",
+      "23":"Lower Left Lateral Incisor – Shearing food",
+      "24":"Lower Left Central Incisor – Cutting food",
+      "25":"Lower Right Central Incisor – Cutting food",
+      "26":"Lower Right Lateral Incisor – Shearing food",
+      "27":"Lower Right Canine – Tearing and ripping",
+      "28":"Lower Right First Premolar – Crushing and tearing",
+      "29":"Lower Right Second Premolar – Crushing and grinding",
+      "30":"Lower Right First Molar – Grinding and chewing",
+      "31":"Lower Right Second Molar – Grinding and chewing",
+      "32":"Lower Right Third Molar – Wisdom tooth, grinding"
+    };
+
+    // Raycaster & state
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let INTERSECTED = null;
+    let toothMeshes = [];
+
+    // Load GLB
+    const loader = new THREE.GLTFLoader();
+    loader.load('teeth_separated.glb',
+      function(gltf) {
+        scene.add(gltf.scene);
+
+        gltf.scene.traverse(child => {
+          if (child.isMesh) {
+            // clone material(s)
+            if (child.material) {
+              child.material = Array.isArray(child.material)
+                ? child.material.map(m => m.clone())
+                : child.material.clone();
+            }
+            if (child.material && !child.material.emissive) {
+              child.material.emissive = new THREE.Color(0x000000);
+            }
+            toothMeshes.push(child);
+          }
+        });
+
+        // Fit camera
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+        controls.reset();
+        camera.position.copy(center);
+        camera.position.z += size * 0.6;
+        camera.position.y += size * 0.05;
+        camera.lookAt(center);
+        controls.target.copy(center);
+
+        // initial resize to fit layout
+        resizeRenderer();
+      },
+      undefined,
+      function(err){ console.error('GLTF load error', err); }
+    );
+
+    // Info panel helpers
+    function setInfoPanel(number, name, func) {
+      toothNumberEl.textContent = number || '—';
+      toothNameEl.textContent = name || (number ? ('Tooth ' + number) : 'Hover a tooth');
+      toothFunctionEl.textContent = func || 'Move your mouse over a tooth to see its anatomical name and function here.';
+    }
+    function clearInfoPanel() {
+      setInfoPanel('—', 'Hover a tooth', 'Move your mouse over a tooth to see its anatomical name and function here.');
+    }
+
+    // Pointer handling (works for mouse and touch)
+    function updateMouseFromEvent(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+      const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      return { clientX, clientY, rect };
+    }
+
+    function handlePointer(event) {
+      const { clientX, clientY, rect } = updateMouseFromEvent(event);
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(toothMeshes, true);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+
+        if (INTERSECTED !== hit) {
+          if (INTERSECTED && INTERSECTED.material && INTERSECTED.material.emissive) {
+            if (Array.isArray(INTERSECTED.material)) {
+              INTERSECTED.material.forEach(m => m.emissive && m.emissive.setHex(INTERSECTED.currentHex));
+            } else {
+              INTERSECTED.material.emissive.setHex(INTERSECTED.currentHex);
+            }
+          }
+
+          INTERSECTED = hit;
+
+          if (Array.isArray(INTERSECTED.material)) {
+            INTERSECTED.currentHex = INTERSECTED.material[0].emissive ? INTERSECTED.material[0].emissive.getHex() : 0x000000;
+            INTERSECTED.material.forEach(m => m.emissive && m.emissive.setHex(0x4444ff));
+          } else {
+            INTERSECTED.currentHex = INTERSECTED.material.emissive ? INTERSECTED.material.emissive.getHex() : 0x000000;
+            INTERSECTED.material.emissive.setHex(0x4444ff);
+          }
+        }
+
+        // Update side panel
+        const id = hit.name || '';
+        const info = toothInfo[id] || null;
+        if (info) {
+          const parts = info.split('–').map(s => s.trim());
+          const anatomicalName = parts[0] || ('Tooth ' + id);
+          const functionText = parts[1] || '';
+          setInfoPanel(id, anatomicalName, functionText);
+        } else {
+          setInfoPanel(id, 'Tooth ' + id, '');
+        }
+
+        // On small screens, show overlay panel automatically
+        if (window.innerWidth <= 900) {
+          showPanelOverlay();
+        }
+      } else {
+        if (INTERSECTED && INTERSECTED.material && INTERSECTED.material.emissive) {
+          if (Array.isArray(INTERSECTED.material)) {
+            INTERSECTED.material.forEach(m => m.emissive && m.emissive.setHex(INTERSECTED.currentHex));
+          } else {
+            INTERSECTED.material.emissive.setHex(INTERSECTED.currentHex);
+          }
+        }
+        INTERSECTED = null;
+        clearInfoPanel();
+      }
+    }
+
+    // Event listeners
+    renderer.domElement.addEventListener('pointermove', handlePointer);
+    // For touch devices, use pointerdown to select on tap
+    renderer.domElement.addEventListener('pointerdown', function(e){
+      // treat as selection as well
+      handlePointer(e);
+    });
+
+    renderer.domElement.addEventListener('pointerleave', function(){
+      if (INTERSECTED && INTERSECTED.material && INTERSECTED.material.emissive) {
+        if (Array.isArray(INTERSECTED.material)) {
+          INTERSECTED.material.forEach(m => m.emissive && m.emissive.setHex(INTERSECTED.currentHex));
+        } else {
+          INTERSECTED.material.emissive.setHex(INTERSECTED.currentHex);
+        }
+      }
+      INTERSECTED = null;
+      clearInfoPanel();
+    });
+
+    // Responsive resizing
+    function resizeRenderer() {
+      // viewer-card's #viewer-frame size
+      const viewerFrame = document.getElementById('viewer-frame');
+      const w = viewerFrame.clientWidth;
+      const h = viewerFrame.clientHeight;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+
+    window.addEventListener('resize', resizeRenderer);
+
+    // Panel toggle for mobile
+    function showPanelOverlay() {
+      // move a clone of infoPanel into overlay for better UX on mobile
+      panelOverlay.innerHTML = '';
+      const clone = infoPanel.cloneNode(true);
+      clone.classList.add('overlay');
+      panelOverlay.appendChild(clone);
+      panelOverlay.classList.add('show');
+      panelOverlay.setAttribute('aria-hidden','false');
+    }
+    function hidePanelOverlay() {
+      panelOverlay.classList.remove('show');
+      panelOverlay.innerHTML = '';
+      panelOverlay.setAttribute('aria-hidden','true');
+    }
+
+    panelToggleBtn.addEventListener('click', function(){
+      if (panelOverlay.classList.contains('show')) hidePanelOverlay();
+      else showPanelOverlay();
+    });
+
+    // Show toggle button only on small screens
+    function updateToggleVisibility() {
+      if (window.innerWidth <= 900) {
+        panelToggleBtn.style.display = 'inline-flex';
+      } else {
+        panelToggleBtn.style.display = 'none';
+        hidePanelOverlay();
+      }
+    }
+    window.addEventListener('resize', updateToggleVisibility);
+    updateToggleVisibility();
+
+    // Initial panel state
+    clearInfoPanel();
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Initial resize after DOM ready
+    window.addEventListener('load', () => {
+      resizeRenderer();
+      updateToggleVisibility();
+    });
+  </script>
 </body>
 </html>
